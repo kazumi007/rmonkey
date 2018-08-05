@@ -1,0 +1,7 @@
+[package]
+name = "rmonkey"
+version = "0.1.0"
+authors = ["kazumi007 <kazumi007@gmail.com>"]
+
+
+[dependencies]
