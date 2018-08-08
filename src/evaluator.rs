@@ -45,8 +45,8 @@ impl Evaluator {
                 for stmt in stmts {
                     let val = self.eval_statement(stmt, env)?;
                     match &*val {
-                        MObject::ReturnValue(_) => return Ok(val.clone()),
-                        _ => result = Some(val.clone()),
+                        MObject::ReturnValue(_) => return Ok(val),
+                        _ => result = Some(val),
                     };
                 }
                 Ok(result.unwrap())
@@ -98,7 +98,7 @@ impl Evaluator {
             }
 
             Expression::Identifier(ref ident) => match env.borrow().get(ident) {
-                Some(val) => Ok(val.clone()),
+                Some(val) => Ok(val),
                 None => match self.builtin.get(ident) {
                     Some(_) => Ok(Rc::new(MObject::BuiltinFunc {
                         name: ident.to_string(),

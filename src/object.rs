@@ -94,34 +94,37 @@ impl fmt::Display for MObject {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Environment {
-    Root(HashMap<String, Rc<MObject>>),
-    Store(HashMap<String, Rc<MObject>>, Rc<RefCell<Environment>>),
+pub struct Environment {
+    store: HashMap<String, Rc<MObject>>,
+    parent: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
-        Environment::Root(HashMap::new())
+        Environment {
+            store: HashMap::new(),
+            parent: None,
+        }
     }
 
     pub fn get(&self, key: &str) -> Option<Rc<MObject>> {
-        match self {
-            Environment::Root(ref inner) => inner.get(key).cloned(),
-            Environment::Store(ref inner, ref outer) => match inner.get(key) {
-                Some(v) => Some(v.clone()),
-                None => outer.borrow_mut().get(key),
-            },
+        match self.store.get(key) {
+            Some(v) => Some(v.clone()),
+            None => match self.parent {
+                Some(ref v) => v.borrow().get(key),
+                _ => None,
+            }
         }
     }
 
     pub fn put(&mut self, key: &str, obj: &Rc<MObject>) {
-        match self {
-            Environment::Root(ref mut env) => env.insert(key.to_string(), obj.clone()),
-            Environment::Store(ref mut env, _) => env.insert(key.to_string(), obj.clone()),
-        };
+        self.store.insert(key.to_string(), obj.clone());
     }
 
     pub fn enclose_env(outer: &Rc<RefCell<Environment>>) -> Environment {
-        Environment::Store(HashMap::new(), outer.clone())
+        Environment {
+            store: HashMap::new(),
+            parent: Some(outer.clone()),
+        }
     }
 }
