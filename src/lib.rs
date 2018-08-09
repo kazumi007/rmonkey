@@ -1,5 +1,6 @@
 // #![feature(test)]
 // extern crate test;
+extern crate fnv;
 
 pub mod ast;
 pub mod builtins;

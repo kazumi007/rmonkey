@@ -1,11 +1,11 @@
 use object::MObject;
-use std::collections::HashMap;
 use std::rc::Rc;
+use fnv::FnvHashMap;
 
 pub type BuiltinFunc = fn(&[Rc<MObject>]) -> Result<Rc<MObject>, String>;
 
-pub fn builtinmap() -> HashMap<String, BuiltinFunc> {
-    let mut hm: HashMap<String, BuiltinFunc> = HashMap::new();
+pub fn builtinmap() -> FnvHashMap<String, BuiltinFunc> {
+    let mut hm: FnvHashMap<String, BuiltinFunc> = FnvHashMap::default();
     hm.insert("len".to_string(), builtin_len);
     hm.insert("puts".to_string(), builtin_puts);
     hm.insert("first".to_string(), builtin_first);

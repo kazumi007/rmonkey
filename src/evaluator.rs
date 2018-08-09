@@ -1,8 +1,8 @@
+use fnv::FnvHashMap;
 use ast::*;
 use builtins::*;
 use object::{Environment, Hashable, MObject};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 pub type EvalResult = Result<Rc<MObject>, String>;
@@ -10,7 +10,7 @@ pub type EvalResult = Result<Rc<MObject>, String>;
 pub type Env = Rc<RefCell<Environment>>;
 
 pub struct Evaluator {
-    builtin: HashMap<String, BuiltinFunc>,
+    builtin: FnvHashMap<String, BuiltinFunc>,
 }
 
 impl Evaluator {
@@ -130,7 +130,7 @@ impl Evaluator {
             }
 
             Expression::HashLiteral(vals) => {
-                let mut map = HashMap::new();
+                let mut map = FnvHashMap::default();
                 for (k, v) in vals {
                     let kv = self.eval_expression(k, env)?;
                     let value = self.eval_expression(v, env)?;

@@ -1,6 +1,6 @@
+use fnv::FnvHashMap;
 use ast::{Expression, Statement};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -43,7 +43,7 @@ pub enum MObject {
     Null,
     Str(String),
     Array(Vec<Rc<MObject>>),
-    HashMap(HashMap<Hashable, Rc<MObject>>),
+    HashMap(FnvHashMap<Hashable, Rc<MObject>>),
     ReturnValue(Rc<MObject>),
     Function {
         params: Vec<Expression>,
@@ -95,14 +95,14 @@ impl fmt::Display for MObject {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
-    store: HashMap<String, Rc<MObject>>,
+    store: FnvHashMap<String, Rc<MObject>>,
     parent: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            store: HashMap::new(),
+            store: FnvHashMap::default(),
             parent: None,
         }
     }
@@ -123,7 +123,7 @@ impl Environment {
 
     pub fn enclose_env(outer: &Rc<RefCell<Environment>>) -> Environment {
         Environment {
-            store: HashMap::new(),
+            store: FnvHashMap::default(),
             parent: Some(outer.clone()),
         }
     }

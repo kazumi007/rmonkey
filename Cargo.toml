@@ -5,3 +5,4 @@ authors = ["kazumi007 <kazumi007@gmail.com>"]
 
 
 [dependencies]
+fnv = "1.0.3"
