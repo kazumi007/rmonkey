@@ -73,8 +73,8 @@ impl Evaluator {
         match exp {
             Expression::IntegerLiteral(ref value) => Ok(Rc::new(MObject::Int(*value))),
             
-            Expression::BooleanLiteral(ref value) => Ok(Rc::new(MObject::Bool(*value))),
-            
+            Expression::BooleanLiteral(ref value) => Ok(self.native_to_bool(*value)),
+
             Expression::Prefix(op, exp) => self.eval_prefix_expression(op, exp, env),
 
             Expression::Infix(left, op, right) => {
@@ -189,10 +189,10 @@ impl Evaluator {
 
     fn eval_bang_expression(&self, right: &MObject) -> EvalResult {
         let val = match right {
-            MObject::Bool(true) => Rc::new(MObject::Bool(false)),
-            MObject::Bool(false) => Rc::new(MObject::Bool(true)),
-            MObject::Null => Rc::new(MObject::Bool(true)),
-            _ => Rc::new(MObject::Bool(false)),
+            MObject::Bool(true) => self.native_to_bool(false),
+            MObject::Bool(false) => self.native_to_bool(true),
+            MObject::Null => self.native_to_bool(true),
+            _ => self.native_to_bool(false),
         };
 
         Ok(val)
@@ -215,8 +215,8 @@ impl Evaluator {
             (MObject::Int(l), MObject::Int(r)) => self.eval_integer_infix_expression(op, *l, *r),
             (MObject::Str(l), MObject::Str(r)) => self.eval_string_infix_expression(op, l, r),
             _ => match op {
-                InfixOp::Eq => Ok(Rc::new(MObject::Bool(left == right))),
-                InfixOp::Neq => Ok(Rc::new(MObject::Bool(left != right))),
+                InfixOp::Eq => Ok(self.native_to_bool(left == right)),
+                InfixOp::Neq => Ok(self.native_to_bool(left != right)),
                 _ => Err(format!("unknown operator: {:?} {:?} {:?}", op, left, right).to_string()),
             },
         }
@@ -228,10 +228,10 @@ impl Evaluator {
             InfixOp::Sub => Ok(Rc::new(MObject::Int(left - right))),
             InfixOp::Mul => Ok(Rc::new(MObject::Int(left * right))),
             InfixOp::Div => Ok(Rc::new(MObject::Int(left / right))),
-            InfixOp::Lt => Ok(Rc::new(MObject::Bool(left < right))),
-            InfixOp::Gt => Ok(Rc::new(MObject::Bool(left > right))),
-            InfixOp::Eq => Ok(Rc::new(MObject::Bool(left == right))),
-            InfixOp::Neq => Ok(Rc::new(MObject::Bool(left != right))),
+            InfixOp::Lt => Ok(self.native_to_bool(left < right)),
+            InfixOp::Gt => Ok(self.native_to_bool(left > right)),
+            InfixOp::Eq => Ok(self.native_to_bool(left == right)),
+            InfixOp::Neq => Ok(self.native_to_bool(left != right)),
         }
     }
 
@@ -245,10 +245,10 @@ impl Evaluator {
             InfixOp::Add => Ok(Rc::new(MObject::Str(
                 format!("{}{}", left, right).to_string(),
             ))),
-            InfixOp::Lt => Ok(Rc::new(MObject::Bool(left < right))),
-            InfixOp::Gt => Ok(Rc::new(MObject::Bool(left > right))),
-            InfixOp::Eq => Ok(Rc::new(MObject::Bool(left == right))),
-            InfixOp::Neq => Ok(Rc::new(MObject::Bool(left != right))),
+            InfixOp::Lt => Ok(self.native_to_bool(left < right)),
+            InfixOp::Gt => Ok(self.native_to_bool(left > right)),
+            InfixOp::Eq => Ok(self.native_to_bool(left == right)),
+            InfixOp::Neq => Ok(self.native_to_bool(left != right)),
             _ => Err(format!("unknown operator: {:?} for str", op)),
         }
     }
@@ -298,6 +298,14 @@ impl Evaluator {
             return v.clone();
         }
         val
+    }
+
+    fn native_to_bool(&self, val: bool) -> Rc<MObject> {
+        if val {
+            Rc::new(MObject::Bool(true))
+        } else {
+            Rc::new(MObject::Bool(false))
+        }
     }
 }
 
