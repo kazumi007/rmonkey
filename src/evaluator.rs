@@ -11,12 +11,18 @@ pub type Env = Rc<RefCell<Environment>>;
 
 pub struct Evaluator {
     builtin: FnvHashMap<String, BuiltinFunc>,
+    true_obj: Rc<MObject>,
+    false_obj: Rc<MObject>,
+    null_obj: Rc<MObject>,
 }
 
 impl Evaluator {
     pub fn new() -> Evaluator {
         Evaluator {
             builtin: builtinmap(),
+            true_obj: Rc::new(MObject::Bool(true)),
+            false_obj: Rc::new(MObject::Bool(false)),
+            null_obj: Rc::new(MObject::Null),
         }
     }
 
@@ -92,7 +98,7 @@ impl Evaluator {
                     if let Some(v) = alt {
                         return self.eval_statement(v, env);
                     } else {
-                        return Ok(Rc::new(MObject::Null));
+                        return Ok(self.null_obj.clone());
                     }
                 }
             }
@@ -152,9 +158,7 @@ impl Evaluator {
 
     fn is_truethly(&self, obj: &MObject) -> bool {
         match obj {
-            MObject::Null => false,
-            MObject::Bool(true) => true,
-            MObject::Bool(false) => false,
+            MObject::Bool(false) | MObject::Null => false,
             _ => true,
         }
     }
@@ -163,7 +167,7 @@ impl Evaluator {
         match (array, index) {
             (MObject::Array(vals), MObject::Int(index)) => {
                 if *index < 0 || *index >= vals.len() as i64 {
-                    return Ok(Rc::new(MObject::Null));
+                    return Ok(self.null_obj.clone());
                 }
                 let index = *index as usize;
                 Ok(vals[index].clone())
@@ -171,8 +175,10 @@ impl Evaluator {
             
             (MObject::HashMap(map), kv) => {
                 let key = Hashable::from(kv)?;
-                map.get(&key)
-                    .map_or_else(|| Ok(Rc::new(MObject::Null)), |v| Ok(v.clone()))
+                match map.get(&key) {
+                    Some(v) => Ok(v.clone()),
+                    None => Ok(self.null_obj.clone()), 
+                }
             }
             _ => Err(format!("index operator not supported: {}", array).to_string()),
         }
@@ -211,7 +217,7 @@ impl Evaluator {
         left: &MObject,
         right: &MObject,
     ) -> EvalResult {
-        match (left, right) {
+        match &(left, right) {
             (MObject::Int(l), MObject::Int(r)) => self.eval_integer_infix_expression(op, *l, *r),
             (MObject::Str(l), MObject::Str(r)) => self.eval_string_infix_expression(op, l, r),
             _ => match op {
@@ -302,9 +308,9 @@ impl Evaluator {
 
     fn native_to_bool(&self, val: bool) -> Rc<MObject> {
         if val {
-            Rc::new(MObject::Bool(true))
+          self.true_obj.clone()
         } else {
-            Rc::new(MObject::Bool(false))
+          self.false_obj.clone()
         }
     }
 }
