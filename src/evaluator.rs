@@ -1,6 +1,6 @@
-use fnv::FnvHashMap;
 use ast::*;
 use builtins::*;
+use fnv::FnvHashMap;
 use object::{Environment, Hashable, MObject};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -78,7 +78,7 @@ impl Evaluator {
     fn eval_expression(&mut self, exp: &Expression, env: &Env) -> EvalResult {
         match exp {
             Expression::IntegerLiteral(ref value) => Ok(Rc::new(MObject::Int(*value))),
-            
+
             Expression::BooleanLiteral(ref value) => Ok(self.native_to_bool(*value)),
 
             Expression::Prefix(op, exp) => self.eval_prefix_expression(op, exp, env),
@@ -120,9 +120,17 @@ impl Evaluator {
             })),
 
             Expression::Call(ident, params) => {
-                let func = self.eval_expression(ident, env)?;
-                let args = self.eval_expressions(params, env)?;
-                self.apply_function(&func, args.as_slice())
+                let ident_unbox = &**ident;
+                match ident_unbox {
+                    Expression::Identifier(ref idkey) if idkey == "quote" => {
+                        return Ok(Rc::new(MObject::Quote(Box::new(params[0].clone()))))
+                    }
+                    _ => {
+                        let func = self.eval_expression(ident, env)?;
+                        let args = self.eval_expressions(params, env)?;
+                        self.apply_function(&func, args.as_slice())
+                    }
+                }
             }
 
             Expression::StringLiteral(val) => Ok(Rc::new(MObject::Str(val.to_string()))),
@@ -172,12 +180,12 @@ impl Evaluator {
                 let index = *index as usize;
                 Ok(vals[index].clone())
             }
-            
+
             (MObject::HashMap(map), kv) => {
                 let key = Hashable::from(kv)?;
                 match map.get(&key) {
                     Some(v) => Ok(v.clone()),
-                    None => Ok(self.null_obj.clone()), 
+                    None => Ok(self.null_obj.clone()),
                 }
             }
             _ => Err(format!("index operator not supported: {}", array).to_string()),
@@ -308,9 +316,9 @@ impl Evaluator {
 
     fn native_to_bool(&self, val: bool) -> Rc<MObject> {
         if val {
-          self.true_obj.clone()
+            self.true_obj.clone()
         } else {
-          self.false_obj.clone()
+            self.false_obj.clone()
         }
     }
 }

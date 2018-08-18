@@ -1,5 +1,5 @@
-use fnv::FnvHashMap;
 use ast::{Expression, Statement};
+use fnv::FnvHashMap;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -53,6 +53,7 @@ pub enum MObject {
     BuiltinFunc {
         name: String,
     },
+    Quote(Box<Expression>),
 }
 
 impl fmt::Display for MObject {
@@ -74,7 +75,7 @@ impl fmt::Display for MObject {
                 }
                 write!(f, "]")
             }
-            MObject::ReturnValue(val) => write!(f, "ReturnValue{}", val),
+            MObject::ReturnValue(val) => write!(f, "{}", val),
             MObject::Function { .. } => write!(f, "Function"),
             MObject::BuiltinFunc { name } => write!(f, "BuiltinFunc{}", name),
             MObject::HashMap(ref map) => {
@@ -89,6 +90,7 @@ impl fmt::Display for MObject {
                 }
                 write!(f, "}}")
             }
+            MObject::Quote(node) => write!(f, "QUOTE()"), // TODO: output node.
         }
     }
 }
@@ -113,7 +115,7 @@ impl Environment {
             None => match self.parent {
                 Some(ref v) => v.borrow().get(key),
                 _ => None,
-            }
+            },
         }
     }
 
