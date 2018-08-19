@@ -200,6 +200,18 @@ impl Parser {
         Ok(params)
     }
 
+    fn parse_macro(&mut self) -> Result<Expression, String> {
+        expect_peek!(self, Token::LParen);
+
+        let params = try!(self.parse_func_parameters());
+
+        expect_peek!(self, Token::LBrace);
+
+        let block = try!(self.parse_block_statement());
+
+        Ok(Expression::MacroLiteral(params, Box::new(block)))
+    }
+
     fn find_prefixfn(&self, token: &Token) -> Option<PrefixParseFn> {
         match token {
             Token::Ident(_) => Some(Parser::parse_identifier),
@@ -214,6 +226,7 @@ impl Parser {
             Token::Str(_) => Some(Parser::parse_str),
             Token::If => Some(Parser::parse_if_expression),
             Token::Function => Some(Parser::parse_func),
+            Token::Macro => Some(Parser::parse_macro),
             _ => None,
         }
     }
@@ -237,7 +250,7 @@ impl Parser {
                 Some(ref parse_infixfn) => {
                     self.next_token();
                     let result = parse_infixfn(self, left);
-                    left= try!(result);
+                    left = try!(result);
                 }
                 None => return Ok(left),
             }
@@ -274,8 +287,8 @@ impl Parser {
 
         Ok(Expression::Call(Box::new(func), args))
     }
-    
-    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, String> { 
+
+    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, String> {
         self.next_token();
         let index = self.parse_expression(LOWEST)?;
 
@@ -350,7 +363,8 @@ impl Parser {
 
     fn parse_int(&mut self) -> Result<Expression, String> {
         match self.current_token {
-            Token::Int(ref x) => x.parse::<i64>()
+            Token::Int(ref x) => x
+                .parse::<i64>()
                 .map_err(|err| err.to_string())
                 .and_then(|val| Ok(Expression::IntegerLiteral(val))),
             _ => unreachable!(),
@@ -365,7 +379,7 @@ impl Parser {
         }
     }
 
-    fn parse_str(&mut self)-> Result<Expression, String> {
+    fn parse_str(&mut self) -> Result<Expression, String> {
         match self.current_token {
             Token::Str(ref s) => Ok(Expression::StringLiteral(s.clone())),
             _ => unreachable!(),
@@ -817,5 +831,29 @@ return 993322;
         //     },
         //     _ => panic!("unexpected ast: {:?}", program.statements[0]),
         // }
+    }
+
+    #[test]
+    fn test_macro_literal() {
+        let input = "macro(x, y){ x + y; }";
+
+        let l = Lexer::with_string(input);
+        let mut p = Parser::new(l);
+
+        let program = p.parse_program().unwrap();
+        assert_eq!(1, program.statements.len());
+        match &program.statements[0] {
+            Statement::Expression(expr) => {
+                match (expr) {
+                    Expression::MacroLiteral(params, bstmt) => {
+                        assert_eq!(2, params.len());
+                        test_let_identifier(&params[0], "x");
+                        test_let_identifier(&params[1], "y");
+                    }
+                    _ => panic!("unexpected expr: {:?}", expr),
+                }
+            },
+            _ => panic!("unexpected stmt: {:?}", program.statements[0]),
+        }
     }
 }

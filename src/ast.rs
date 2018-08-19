@@ -13,6 +13,20 @@ pub enum Statement {
     BlockStatement(Vec<Statement>),
 }
 
+impl Statement {
+    pub fn is_macro(&self)->bool {
+        match self {
+            Statement::Let(_, value) => {
+                match value {
+                    Expression::MacroLiteral(_, _) => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum PreOp {
     Neg, // -
@@ -45,6 +59,7 @@ pub enum Expression {
     Index(Box<Expression>, Box<Expression>),          // Left[Index]
     If(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
     Call(Box<Expression>, Vec<Expression>), // Function, Arguments
+    MacroLiteral(Vec<Expression>, Box<Statement>), // Expression::Identifier, Expression::BlockStatement
 }
 
 pub type ModifierFn = FnMut(Expression) -> Expression;

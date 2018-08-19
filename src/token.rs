@@ -30,5 +30,6 @@ pub enum Token {
     Else,
     Return,
     Str(String),
+    Macro,      // macro
     EOF,
 }

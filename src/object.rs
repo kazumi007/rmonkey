@@ -54,6 +54,11 @@ pub enum MObject {
         name: String,
     },
     Quote(Box<Expression>),
+    Macro {
+        params: Vec<Expression>, // Expression::Identifier
+        body: Box<Statement>,    // Statement::BlockStatement
+        env: Rc<RefCell<Environment>>,
+    },
 }
 
 impl fmt::Display for MObject {
@@ -90,7 +95,11 @@ impl fmt::Display for MObject {
                 }
                 write!(f, "}}")
             }
-            MObject::Quote(node) => write!(f, "QUOTE()"), // TODO: output node.
+            MObject::Quote(node) => write!(f, "quote()"), // TODO: output node.
+            MObject::Macro { .. } => {
+                write!(f, "macro(");
+                write!(f, "...)")
+            }
         }
     }
 }

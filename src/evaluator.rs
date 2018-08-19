@@ -327,8 +327,8 @@ impl Evaluator {
         Ok(Rc::new(MObject::Quote(Box::new(ast))))
     }
 
-    fn eval_unquote_calls(&mut self, expr: &Expression, env:&Env) -> Expression {
-        let mut modifier = |expr:Expression| -> Expression {
+    fn eval_unquote_calls(&mut self, expr: &Expression, env: &Env) -> Expression {
+        let mut modifier = |expr: Expression| -> Expression {
             match &expr {
                 Expression::Call(ident, params) if params.len() == 1 => {
                     let ident_unbox = &**ident;
@@ -337,7 +337,7 @@ impl Evaluator {
                             let unquote = self.eval_expression(&params[0], env).unwrap(); // TODO error
                             self.convert_mobject_to_ast(&*unquote)
                         }
-                       _ => expr.clone(),
+                        _ => expr.clone(),
                     }
                 }
                 _ => expr.clone(),
@@ -347,12 +347,49 @@ impl Evaluator {
         modify_expression(expr.clone(), &mut modifier)
     }
 
-    fn convert_mobject_to_ast(&self, obj:&MObject) -> Expression {
+    fn convert_mobject_to_ast(&self, obj: &MObject) -> Expression {
         match obj {
             MObject::Int(val) => Expression::IntegerLiteral(*val),
             MObject::Bool(val) => Expression::BooleanLiteral(*val),
             MObject::Quote(val) => *val.clone(),
             _ => panic!("unexpect unquote object {:?}", obj),
+        }
+    }
+
+    pub fn define_macros(&mut self, program: &Program, env: &Env) -> Program {
+        let macro_stmts: Vec<_> = program
+            .statements
+            .iter()
+            .filter(|stmt| stmt.is_macro())
+            .collect();
+
+        for stmt in &macro_stmts {
+            self.add_macro(stmt, env);
+        }
+
+        let stmts: Vec<_> = program
+            .statements
+            .iter()
+            .filter(|stmt| !stmt.is_macro()).cloned()
+            .collect();
+
+        Program { statements: stmts }
+    }
+
+    fn add_macro(&self, stmt: &Statement, env: &Env) {
+        match stmt {
+            Statement::Let(ident, value) => match (ident, value) {
+                (Expression::Identifier(ident), Expression::MacroLiteral(params, body)) => {
+                    let obj = Rc::new(MObject::Macro {
+                        params: params.to_vec(),
+                        body: Box::new(*body.clone()),
+                        env: env.clone(),
+                    });
+                    env.borrow_mut().put(ident, &obj);
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
         }
     }
 }
@@ -700,6 +737,38 @@ if (10 > 1) {
                 MObject::Null => assert_eq!(*result, MObject::Null),
                 _ => panic!("test failure"),
             }
+        }
+    }
+
+    #[test]
+    fn test_define_macros() {
+        let input = r#"
+let number = 1;
+let function = fn(x, y) { x + y; };
+let mymacro = macro(x, y) {x + y; };
+"#;
+        let l = Lexer::with_string(input);
+        let mut parser = Parser::new(l);
+        let program = parser.parse_program().unwrap();
+        let env = Rc::new(RefCell::new(Environment::new()));
+        let mut eval = Evaluator::new();
+        let program = eval.define_macros(&program, &env);
+
+        assert_eq!(2, program.statements.len());
+        assert_eq!(None, env.borrow().get("number"));
+        assert_eq!(None, env.borrow().get("function"));
+
+        let a = env.borrow().get("mymacro");
+        match a {
+            Some(m) => {
+                match *m {
+                    MObject::Macro{ref params, ref body, ..} => {
+                        assert_eq!(2, params.len());
+                    }
+                    _ => panic!("object is not macro: {:?}", m),
+                }
+            }
+            None => panic!("macro not in environment."),
         }
     }
 }

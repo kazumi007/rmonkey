@@ -161,6 +161,7 @@ impl Lexer {
             "return" => Token::Return,
             "true" => Token::True,
             "false" => Token::False,
+            "macro" => Token::Macro,
             _ => Token::Ident(identifier),
         }
     }
@@ -218,6 +219,7 @@ if (5 < 10) {
 \"foo bar\"
 [1, 2];
 {\"foo\": \"bar\"}
+macro(x, y) { x + y; };
 ";
         let expected = [
             Token::Bang,
@@ -308,6 +310,19 @@ if (5 < 10) {
             Token::Colon,
             Token::Str("bar".to_string()),
             Token::RBrace,
+            Token::Macro,
+            Token::LParen,
+            Token::Ident("x".to_string()),
+            Token::Comma,
+            Token::Ident("y".to_string()),
+            Token::RParen,
+            Token::LBrace,
+            Token::Ident("x".to_string()),
+            Token::Plus,
+            Token::Ident("y".to_string()),
+            Token::SemiColon,
+            Token::RBrace,
+            Token::SemiColon,
             Token::EOF,
         ];
 
