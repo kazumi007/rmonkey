@@ -47,9 +47,9 @@ pub enum Expression {
     Call(Box<Expression>, Vec<Expression>), // Function, Arguments
 }
 
-pub type ModifierFn = Fn(Expression) -> Expression;
+pub type ModifierFn = FnMut(Expression) -> Expression;
 
-fn modify(program: Program, modifier: &ModifierFn) -> Program {
+pub fn modify(program: Program, modifier: &mut FnMut(Expression) -> Expression) -> Program {
     let new_statement = program
         .statements
         .into_iter()
@@ -60,7 +60,10 @@ fn modify(program: Program, modifier: &ModifierFn) -> Program {
     }
 }
 
-fn modify_statement(statement: Statement, modifier: &ModifierFn) -> Statement {
+pub fn modify_statement(
+    statement: Statement,
+    modifier: &mut FnMut(Expression) -> Expression,
+) -> Statement {
     match statement {
         Statement::Let(ident, expr) => Statement::Let(ident, modify_expression(expr, modifier)),
         Statement::Return(expr) => Statement::Return(modify_expression(expr, modifier)),
@@ -76,7 +79,10 @@ fn modify_statement(statement: Statement, modifier: &ModifierFn) -> Statement {
     }
 }
 
-fn modify_expression(expr: Expression, modifier: &ModifierFn) -> Expression {
+pub fn modify_expression(
+    expr: Expression,
+    modifier: &mut FnMut(Expression) -> Expression,
+) -> Expression {
     match expr {
         Expression::Prefix(op, right) => {
             let mod_right = modifier(*right);
@@ -136,15 +142,15 @@ fn modify_expression(expr: Expression, modifier: &ModifierFn) -> Expression {
 mod tests {
     use super::*;
 
-    fn turn_one_into_two(expr: Expression) -> Expression {
-        match expr {
-            Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
-            _ => expr,
-        }
-    }
-
     #[test]
     fn test_modify_expr() {
+        let mut turn_one_into_two = |expr: Expression| -> Expression {
+            match expr {
+                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
+                _ => expr,
+            }
+        };
+
         let one = || Expression::IntegerLiteral(1);
         let two = || Expression::IntegerLiteral(2);
 
@@ -207,13 +213,20 @@ mod tests {
         ];
 
         for (input, expected) in tests.iter() {
-            let modified = modify_expression(input.clone(), &turn_one_into_two);
+            let modified = modify_expression(input.clone(), &mut turn_one_into_two);
             assert_eq!(*expected, modified);
         }
     }
 
     #[test]
     fn test_modify_stmt() {
+        let mut turn_one_into_two = |expr: Expression| -> Expression {
+            match expr {
+                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
+                _ => expr,
+            }
+        };
+
         let one = || Expression::IntegerLiteral(1);
         let two = || Expression::IntegerLiteral(2);
 
@@ -226,13 +239,20 @@ mod tests {
         ];
 
         for (input, expected) in tests.into_iter() {
-            let modified = modify_statement(input.clone(), &turn_one_into_two);
+            let modified = modify_statement(input.clone(), &mut turn_one_into_two);
             assert_eq!(*expected, modified);
         }
     }
 
     #[test]
     fn test_modify() {
+        let mut turn_one_into_two = |expr: Expression| -> Expression {
+            match expr {
+                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
+                _ => expr,
+            }
+        };
+
         let one = || Expression::IntegerLiteral(1);
         let two = || Expression::IntegerLiteral(2);
 
@@ -246,7 +266,7 @@ mod tests {
         )];
 
         for (input, expected) in tests.into_iter() {
-            let modified = modify(input.clone(), &turn_one_into_two);
+            let modified = modify(input.clone(), &mut turn_one_into_two);
             assert_eq!(*expected, modified);
         }
     }

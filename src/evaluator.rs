@@ -123,7 +123,7 @@ impl Evaluator {
                 let ident_unbox = &**ident;
                 match ident_unbox {
                     Expression::Identifier(ref idkey) if idkey == "quote" => {
-                        return Ok(Rc::new(MObject::Quote(Box::new(params[0].clone()))))
+                        return self.quote(&params[0], env)
                     }
                     _ => {
                         let func = self.eval_expression(ident, env)?;
@@ -319,6 +319,40 @@ impl Evaluator {
             self.true_obj.clone()
         } else {
             self.false_obj.clone()
+        }
+    }
+
+    fn quote(&mut self, expr: &Expression, env: &Env) -> EvalResult {
+        let ast = self.eval_unquote_calls(expr, env);
+        Ok(Rc::new(MObject::Quote(Box::new(ast))))
+    }
+
+    fn eval_unquote_calls(&mut self, expr: &Expression, env:&Env) -> Expression {
+        let mut modifier = |expr:Expression| -> Expression {
+            match &expr {
+                Expression::Call(ident, params) if params.len() == 1 => {
+                    let ident_unbox = &**ident;
+                    match ident_unbox {
+                        Expression::Identifier(ref idkey) if idkey == "unquote" => {
+                            let unquote = self.eval_expression(&params[0], env).unwrap(); // TODO error
+                            self.convert_mobject_to_ast(&*unquote)
+                        }
+                       _ => expr.clone(),
+                    }
+                }
+                _ => expr.clone(),
+            }
+        };
+
+        modify_expression(expr.clone(), &mut modifier)
+    }
+
+    fn convert_mobject_to_ast(&self, obj:&MObject) -> Expression {
+        match obj {
+            MObject::Int(val) => Expression::IntegerLiteral(*val),
+            MObject::Bool(val) => Expression::BooleanLiteral(*val),
+            MObject::Quote(val) => *val.clone(),
+            _ => panic!("unexpect unquote object {:?}", obj),
         }
     }
 }
