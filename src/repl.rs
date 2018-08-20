@@ -10,6 +10,7 @@ const PROMPT: &str = ">> ";
 
 pub fn start_repl(reader: &mut Stdin, writer: &mut Write) {
     let env = Rc::new(RefCell::new(Environment::new()));
+    let macro_env = Rc::new(RefCell::new(Environment::new()));
     loop {
         write!(writer, "{}", PROMPT);
         writer.flush();
@@ -22,6 +23,8 @@ pub fn start_repl(reader: &mut Stdin, writer: &mut Write) {
 
         match result {
             Ok(program) => {
+                let program = e.define_macros(&program, &macro_env);
+                let program = e.expand_macro(&program, &macro_env);
                 let result = e.eval(&program, &env);
                 match result {
                     Ok(opt) => writeln!(writer, "{}", &*opt),
@@ -37,12 +40,17 @@ pub fn start_repl(reader: &mut Stdin, writer: &mut Write) {
 
 pub fn start_interpreter(buf: &str, writer: &mut Write) {
     let env = Rc::new(RefCell::new(Environment::new()));
+    let macro_env = Rc::new(RefCell::new(Environment::new()));
+
     let l = Lexer::with_string(&buf);
     let mut p = Parser::new(l);
     let mut e = Evaluator::new();
     let result = p.parse_program();
     match result {
         Ok(program) => {
+            let program = e.define_macros(&program, &macro_env);
+            let program = e.expand_macro(&program, &macro_env);
+
             let result = e.eval(&program, &env);
             match result {
                 Ok(opt) => writeln!(writer, "{}", &*opt),

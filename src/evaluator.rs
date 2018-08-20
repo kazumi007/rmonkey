@@ -370,7 +370,8 @@ impl Evaluator {
         let stmts: Vec<_> = program
             .statements
             .iter()
-            .filter(|stmt| !stmt.is_macro()).cloned()
+            .filter(|stmt| !stmt.is_macro())
+            .cloned()
             .collect();
 
         Program { statements: stmts }
@@ -390,6 +391,85 @@ impl Evaluator {
                 _ => unreachable!(),
             },
             _ => unreachable!(),
+        }
+    }
+
+    pub fn expand_macro(&mut self, program: &Program, env: &Env) -> Program {
+        let mut modifier = |expr: Expression| -> Expression {
+            match &expr {
+                Expression::Call(_, _) => {
+                    let m = self.is_macro_call(&expr, &env);
+                    if m.is_none() {
+                        return expr;
+                    }
+
+                    let args = self.quote_args(&expr);
+                    let m = m.unwrap();
+                    let eval_env = self.extended_macro_env(&m, &args);
+
+                    match &*m {
+                        MObject::Macro { params, body, env } => {
+                            let evaluated = self.eval_statement(&body, &eval_env);
+                            println!("evaluated: {:?}", evaluated);
+                            if evaluated.is_ok() {
+                                let evaluated = evaluated.unwrap();
+                                if let MObject::Quote(ref quote) = *evaluated {
+                                    return *quote.clone();
+                                } else {
+                                    return expr;
+                                }
+                            } else {
+                                return expr;
+                            }
+                        }
+                        _ => expr,
+                    }
+                }
+                _ => expr,
+            }
+        };
+
+        modify(program.clone(), &mut modifier)
+    }
+
+    fn is_macro_call(&self, call_expr: &Expression, env: &Env) -> Option<Rc<MObject>> {
+        match call_expr {
+            Expression::Call(ref func, ref params) => match &**func {
+                Expression::Identifier(ref name) => env.borrow().get(&*name),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn quote_args(&self, call_expr: &Expression) -> Vec<Rc<MObject>> {
+        match call_expr {
+            Expression::Call(_, args) => args
+                .into_iter()
+                .map(|arg| Rc::new(MObject::Quote(Box::new(arg.clone()))))
+                .collect(),
+            _ => panic!("unexpected object type: {:?}", call_expr),
+        }
+    }
+
+    fn extended_macro_env(&self, macro_obj: &Rc<MObject>, args: &[Rc<MObject>]) -> Env {
+        match &**macro_obj {
+            MObject::Macro {
+                ref params,
+                ref body,
+                ref env,
+            } => {
+                let newenv = Rc::new(RefCell::new(Environment::enclose_env(&env)));
+
+                for (i, arg) in args.into_iter().enumerate() {
+                    if let Expression::Identifier(key) = &params[i] {
+                        newenv.borrow_mut().put(key, arg);
+                    }
+                }
+
+                return newenv;
+            }
+            _ => panic!("unexpected object {:?}", macro_obj),
         }
     }
 }
@@ -760,15 +840,41 @@ let mymacro = macro(x, y) {x + y; };
 
         let a = env.borrow().get("mymacro");
         match a {
-            Some(m) => {
-                match *m {
-                    MObject::Macro{ref params, ref body, ..} => {
-                        assert_eq!(2, params.len());
-                    }
-                    _ => panic!("object is not macro: {:?}", m),
+            Some(m) => match *m {
+                MObject::Macro {
+                    ref params,
+                    ref body,
+                    ..
+                } => {
+                    assert_eq!(2, params.len());
                 }
-            }
+                _ => panic!("object is not macro: {:?}", m),
+            },
             None => panic!("macro not in environment."),
         }
+    }
+
+    #[test]
+    fn test_expand_macros() {
+        let input = r#"
+let unless_macro = macro(condition, consequence, alternative) {
+    quote(if (!(unquote(condition))) {
+        unquote(consequence);
+    } else {
+        unquote(alternative);
+    });
+};
+
+unless_macro(10 > 5, puts("not greater"), puts("greater"));
+
+"#;
+        let l = Lexer::with_string(input);
+        let mut parser = Parser::new(l);
+        let program = parser.parse_program().unwrap();
+        let env = Rc::new(RefCell::new(Environment::new()));
+        let mut eval = Evaluator::new();
+        let program = eval.define_macros(&program, &env);
+        let program = eval.expand_macro(&program, &env);
+        println!("program {:?}", program);
     }
 }
