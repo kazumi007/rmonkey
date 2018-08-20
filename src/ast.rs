@@ -14,14 +14,12 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn is_macro(&self)->bool {
+    pub fn is_macro(&self) -> bool {
         match self {
-            Statement::Let(_, value) => {
-                match value {
-                    Expression::MacroLiteral(_, _) => true,
-                    _ => false,
-                }
-            }
+            Statement::Let(_, value) => match value {
+                Expression::MacroLiteral(_, _) => true,
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -100,22 +98,30 @@ pub fn modify_expression(
 ) -> Expression {
     match expr {
         Expression::Prefix(op, right) => {
-            let mod_right = modifier(*right);
+            let mod_right = modify_expression(*right, modifier);
             Expression::Prefix(op, Box::new(mod_right))
         }
         Expression::Infix(left, op, right) => {
-            let mod_left = modifier(*left);
-            let mod_right = modifier(*right);
+            let mod_left = modify_expression(*left, modifier);
+            let mod_right = modify_expression(*right, modifier);
             Expression::Infix(Box::new(mod_left), op, Box::new(mod_right))
         }
         Expression::ArrayLiteral(vals) => {
-            let mod_vals = vals.into_iter().map(|val| modifier(val)).collect();
+            let mod_vals = vals
+                .into_iter()
+                .map(|val| modify_expression(val, modifier))
+                .collect();
             Expression::ArrayLiteral(mod_vals)
         }
         Expression::HashLiteral(vals) => {
             let mod_vals = vals
                 .into_iter()
-                .map(|val| (modifier(val.0), modifier(val.1)))
+                .map(|val| {
+                    (
+                        modify_expression(val.0, modifier),
+                        modify_expression(val.1, modifier),
+                    )
+                })
                 .collect();
             Expression::HashLiteral(mod_vals)
         }
@@ -128,12 +134,12 @@ pub fn modify_expression(
             Expression::FunctionLiteral(mod_params, Box::new(mod_blocks))
         }
         Expression::Index(left, right) => {
-            let mod_left = modifier(*left);
-            let mod_right = modifier(*right);
+            let mod_left = modify_expression(*left, modifier);
+            let mod_right = modify_expression(*right, modifier);
             Expression::Index(Box::new(mod_left), Box::new(mod_right))
         }
         Expression::If(cond, conseq, alt) => {
-            let mod_cond = modifier(*cond);
+            let mod_cond = modify_expression(*cond, modifier);
             let mod_conseq = modify_statement(*conseq, modifier);
             let mod_alt = match alt {
                 Some(alt_v) => Some(Box::new(modify_statement(*alt_v, modifier))),
@@ -146,12 +152,6 @@ pub fn modify_expression(
     }
 }
 
-// fn modify_expression<F>(expr: Expression, modifier: F) -> Expression
-// where
-//     F: Fn(Expression) -> Expression,
-// {
-//     modifier(expr)
-// }
 
 #[cfg(test)]
 mod tests {

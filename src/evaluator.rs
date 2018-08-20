@@ -410,7 +410,6 @@ impl Evaluator {
                     match &*m {
                         MObject::Macro { params, body, env } => {
                             let evaluated = self.eval_statement(&body, &eval_env);
-                            println!("evaluated: {:?}", evaluated);
                             if evaluated.is_ok() {
                                 let evaluated = evaluated.unwrap();
                                 if let MObject::Quote(ref quote) = *evaluated {
