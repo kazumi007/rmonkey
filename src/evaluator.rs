@@ -397,58 +397,51 @@ impl Evaluator {
     pub fn expand_macro(&mut self, program: &Program, env: &Env) -> Program {
         let mut modifier = |expr: Expression| -> Expression {
             match &expr {
-                Expression::Call(_, _) => {
-                    let m = self.is_macro_call(&expr, &env);
+                Expression::Call(ref ident, ref args) => {
+                    let m = self.is_macro_call(&**ident, &env);
                     if m.is_none() {
-                        return expr;
+                        return expr.clone();
                     }
 
-                    let args = self.quote_args(&expr);
+                    let qargs = self.quote_args(&args);
                     let m = m.unwrap();
-                    let eval_env = self.extended_macro_env(&m, &args);
+                    let eval_env = self.extended_macro_env(&m, &qargs);
 
                     match &*m {
-                        MObject::Macro { params, body, env } => {
+                        MObject::Macro { params, body, .. } => {
                             let evaluated = self.eval_statement(&body, &eval_env);
                             if evaluated.is_ok() {
                                 let evaluated = evaluated.unwrap();
                                 if let MObject::Quote(ref quote) = *evaluated {
                                     return *quote.clone();
                                 } else {
-                                    return expr;
+                                    return expr.clone();
                                 }
                             } else {
-                                return expr;
+                                return expr.clone();
                             }
                         }
-                        _ => expr,
+                        _ => expr.clone(),
                     }
                 }
-                _ => expr,
+                _ => expr.clone(),
             }
         };
 
         modify(program.clone(), &mut modifier)
     }
 
-    fn is_macro_call(&self, call_expr: &Expression, env: &Env) -> Option<Rc<MObject>> {
-        match call_expr {
-            Expression::Call(ref func, ref params) => match &**func {
-                Expression::Identifier(ref name) => env.borrow().get(&*name),
-                _ => None,
-            },
+    fn is_macro_call(&self, ident: &Expression, env: &Env) -> Option<Rc<MObject>> {
+        match &ident {
+            Expression::Identifier(ref name) => env.borrow().get(&*name),
             _ => None,
         }
     }
 
-    fn quote_args(&self, call_expr: &Expression) -> Vec<Rc<MObject>> {
-        match call_expr {
-            Expression::Call(_, args) => args
-                .into_iter()
-                .map(|arg| Rc::new(MObject::Quote(Box::new(arg.clone()))))
-                .collect(),
-            _ => panic!("unexpected object type: {:?}", call_expr),
-        }
+    fn quote_args(&self, args: &[Expression]) -> Vec<Rc<MObject>> {
+        args.into_iter()
+            .map(|arg| Rc::new(MObject::Quote(Box::new(arg.clone()))))
+            .collect()
     }
 
     fn extended_macro_env(&self, macro_obj: &Rc<MObject>, args: &[Rc<MObject>]) -> Env {
