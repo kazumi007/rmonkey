@@ -58,97 +58,110 @@ pub enum Expression {
     MacroLiteral(Vec<Expression>, Box<Statement>), // Expression::Identifier, Expression::BlockStatement
 }
 
-pub type ModifierFn = FnMut(Expression) -> Expression;
+pub type ModifierFn = FnMut(Expression) -> Result<Expression, String>;
 
-pub fn modify(program: Program, modifier: &mut FnMut(Expression) -> Expression) -> Program {
-    let new_statement = program
-        .statements
-        .into_iter()
-        .map(|s| modify_statement(s, modifier))
-        .collect();
-    Program {
-        statements: new_statement,
+pub fn modify(
+    program: Program,
+    modifier: &mut FnMut(Expression) -> Result<Expression, String>,
+) -> Result<Program, String> {
+    let mut new_stmt = vec![];
+    for stmt in program.statements.into_iter() {
+        new_stmt.push(modify_statement(stmt, modifier)?);
     }
+    Ok(Program {
+        statements: new_stmt,
+    })
 }
 
 pub fn modify_statement(
     statement: Statement,
-    modifier: &mut FnMut(Expression) -> Expression,
-) -> Statement {
+    modifier: &mut FnMut(Expression) -> Result<Expression, String>,
+) -> Result<Statement, String> {
     match statement {
-        Statement::Let(ident, expr) => Statement::Let(ident, modify_expression(expr, modifier)),
-        Statement::Return(expr) => Statement::Return(modify_expression(expr, modifier)),
-        Statement::Expression(expr) => Statement::Expression(modify_expression(expr, modifier)),
+        Statement::Let(ident, expr) => {
+            Ok(Statement::Let(ident, modify_expression(expr, modifier)?))
+        }
+        Statement::Return(expr) => Ok(Statement::Return(modify_expression(expr, modifier)?)),
+        Statement::Expression(expr) => {
+            Ok(Statement::Expression(modify_expression(expr, modifier)?))
+        }
         Statement::BlockStatement(stmts) => {
-            let new_stmts = stmts
-                .into_iter()
-                .map(|stmt| modify_statement(stmt, modifier))
-                .collect();
-            Statement::BlockStatement(new_stmts)
+            let mut new_stmts = vec![];
+            for stmt in stmts.into_iter() {
+                new_stmts.push(modify_statement(stmt, modifier)?);
+            }
+            Ok(Statement::BlockStatement(new_stmts))
         }
     }
 }
 
 pub fn modify_expression(
     expr: Expression,
-    modifier: &mut FnMut(Expression) -> Expression,
-) -> Expression {
+    modifier: &mut FnMut(Expression) -> Result<Expression, String>,
+) -> Result<Expression, String> {
     match expr {
         Expression::Prefix(op, right) => {
-            let mod_right = modify_expression(*right, modifier);
-            Expression::Prefix(op, Box::new(mod_right))
+            let mod_right = modify_expression(*right, modifier)?;
+            Ok(Expression::Prefix(op, Box::new(mod_right)))
         }
         Expression::Infix(left, op, right) => {
-            let mod_left = modify_expression(*left, modifier);
-            let mod_right = modify_expression(*right, modifier);
-            Expression::Infix(Box::new(mod_left), op, Box::new(mod_right))
+            let mod_left = modify_expression(*left, modifier)?;
+            let mod_right = modify_expression(*right, modifier)?;
+            Ok(Expression::Infix(
+                Box::new(mod_left),
+                op,
+                Box::new(mod_right),
+            ))
         }
         Expression::ArrayLiteral(vals) => {
-            let mod_vals = vals
-                .into_iter()
-                .map(|val| modify_expression(val, modifier))
-                .collect();
-            Expression::ArrayLiteral(mod_vals)
+            let mut new_vals = vec![];
+            for val in vals {
+                new_vals.push(modify_expression(val, modifier)?);
+            }
+            Ok(Expression::ArrayLiteral(new_vals))
         }
         Expression::HashLiteral(vals) => {
-            let mod_vals = vals
-                .into_iter()
-                .map(|val| {
-                    (
-                        modify_expression(val.0, modifier),
-                        modify_expression(val.1, modifier),
-                    )
-                })
-                .collect();
-            Expression::HashLiteral(mod_vals)
+            let mut new_vals = vec![];
+            for (key, val) in vals {
+                let key = modify_expression(key, modifier)?;
+                let val = modify_expression(val, modifier)?;
+                new_vals.push((key, val));
+            }
+            Ok(Expression::HashLiteral(new_vals))
         }
         Expression::FunctionLiteral(params, block) => {
-            let mod_params = params
-                .into_iter()
-                .map(|param| modify_expression(param, modifier))
-                .collect();
-            let mod_blocks = modify_statement(*block, modifier);
-            Expression::FunctionLiteral(mod_params, Box::new(mod_blocks))
+            let mut new_params = vec![];
+            for param in params {
+                new_params.push(modify_expression(param, modifier)?);
+            }
+            let mod_blocks = modify_statement(*block, modifier)?;
+            Ok(Expression::FunctionLiteral(
+                new_params,
+                Box::new(mod_blocks),
+            ))
         }
         Expression::Index(left, right) => {
-            let mod_left = modify_expression(*left, modifier);
-            let mod_right = modify_expression(*right, modifier);
-            Expression::Index(Box::new(mod_left), Box::new(mod_right))
+            let mod_left = modify_expression(*left, modifier)?;
+            let mod_right = modify_expression(*right, modifier)?;
+            Ok(Expression::Index(Box::new(mod_left), Box::new(mod_right)))
         }
         Expression::If(cond, conseq, alt) => {
-            let mod_cond = modify_expression(*cond, modifier);
-            let mod_conseq = modify_statement(*conseq, modifier);
+            let mod_cond = modify_expression(*cond, modifier)?;
+            let mod_conseq = try!(modify_statement(*conseq, modifier));
             let mod_alt = match alt {
-                Some(alt_v) => Some(Box::new(modify_statement(*alt_v, modifier))),
+                Some(alt_v) => Some(Box::new(modify_statement(*alt_v, modifier)?)),
                 _ => None,
             };
-            Expression::If(Box::new(mod_cond), Box::new(mod_conseq), mod_alt)
+            Ok(Expression::If(
+                Box::new(mod_cond),
+                Box::new(mod_conseq),
+                mod_alt,
+            ))
         }
 
         _ => modifier(expr),
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -156,10 +169,10 @@ mod tests {
 
     #[test]
     fn test_modify_expr() {
-        let mut turn_one_into_two = |expr: Expression| -> Expression {
+        let mut turn_one_into_two = |expr: Expression| -> Result<Expression, String> {
             match expr {
-                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
-                _ => expr,
+                Expression::IntegerLiteral(1) => Ok(Expression::IntegerLiteral(2)),
+                _ => Ok(expr),
             }
         };
 
@@ -226,16 +239,19 @@ mod tests {
 
         for (input, expected) in tests.iter() {
             let modified = modify_expression(input.clone(), &mut turn_one_into_two);
-            assert_eq!(*expected, modified);
+            match modified {
+                Ok(val) => assert_eq!(*expected, val),
+                Err(err) => panic!("err: {}", err),
+            }
         }
     }
 
     #[test]
     fn test_modify_stmt() {
-        let mut turn_one_into_two = |expr: Expression| -> Expression {
+        let mut turn_one_into_two = |expr: Expression| -> Result<Expression, String> {
             match expr {
-                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
-                _ => expr,
+                Expression::IntegerLiteral(1) => Ok(Expression::IntegerLiteral(2)),
+                _ => Ok(expr),
             }
         };
 
@@ -252,16 +268,19 @@ mod tests {
 
         for (input, expected) in tests.into_iter() {
             let modified = modify_statement(input.clone(), &mut turn_one_into_two);
-            assert_eq!(*expected, modified);
+            match modified {
+                Ok(val) => assert_eq!(*expected, val),
+                Err(err) => panic!("err: {}", err),
+            }
         }
     }
 
     #[test]
     fn test_modify() {
-        let mut turn_one_into_two = |expr: Expression| -> Expression {
+        let mut turn_one_into_two = |expr: Expression| -> Result<Expression, String> {
             match expr {
-                Expression::IntegerLiteral(1) => Expression::IntegerLiteral(2),
-                _ => expr,
+                Expression::IntegerLiteral(1) => Ok(Expression::IntegerLiteral(2)),
+                _ => Ok(expr),
             }
         };
 
@@ -279,7 +298,10 @@ mod tests {
 
         for (input, expected) in tests.into_iter() {
             let modified = modify(input.clone(), &mut turn_one_into_two);
-            assert_eq!(*expected, modified);
+            match modified {
+                Ok(val) => assert_eq!(*expected, val),
+                Err(err) => panic!("err: {}", err),
+            }
         }
     }
 }

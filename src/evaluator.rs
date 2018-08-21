@@ -323,24 +323,24 @@ impl Evaluator {
     }
 
     fn quote(&mut self, expr: &Expression, env: &Env) -> EvalResult {
-        let ast = self.eval_unquote_calls(expr, env);
+        let ast = self.eval_unquote_calls(expr, env)?;
         Ok(Rc::new(MObject::Quote(Box::new(ast))))
     }
 
-    fn eval_unquote_calls(&mut self, expr: &Expression, env: &Env) -> Expression {
-        let mut modifier = |expr: Expression| -> Expression {
+    fn eval_unquote_calls(&mut self, expr: &Expression, env: &Env) -> Result<Expression, String> {
+        let mut modifier = |expr: Expression| -> Result<Expression, String> {
             match &expr {
                 Expression::Call(ident, params) if params.len() == 1 => {
                     let ident_unbox = &**ident;
                     match ident_unbox {
                         Expression::Identifier(ref idkey) if idkey == "unquote" => {
-                            let unquote = self.eval_expression(&params[0], env).unwrap(); // TODO error
-                            self.convert_mobject_to_ast(&*unquote)
+                            let unquote = self.eval_expression(&params[0], env)?;
+                            Ok(self.convert_mobject_to_ast(&*unquote))
                         }
-                        _ => expr.clone(),
+                        _ => Ok(expr.clone()),
                     }
                 }
-                _ => expr.clone(),
+                _ => Ok(expr.clone()),
             }
         };
 
@@ -356,7 +356,7 @@ impl Evaluator {
         }
     }
 
-    pub fn define_macros(&mut self, program: &Program, env: &Env) -> Program {
+    pub fn define_macros(&mut self, program: &Program, env: &Env) -> Result<Program, String> {
         let macro_stmts: Vec<_> = program
             .statements
             .iter()
@@ -374,7 +374,7 @@ impl Evaluator {
             .cloned()
             .collect();
 
-        Program { statements: stmts }
+        Ok(Program { statements: stmts })
     }
 
     fn add_macro(&self, stmt: &Statement, env: &Env) {
@@ -394,13 +394,13 @@ impl Evaluator {
         }
     }
 
-    pub fn expand_macro(&mut self, program: &Program, env: &Env) -> Program {
-        let mut modifier = |expr: Expression| -> Expression {
+    pub fn expand_macro(&mut self, program: &Program, env: &Env) -> Result<Program, String> {
+        let mut modifier = |expr: Expression| -> Result<Expression, String> {
             match &expr {
                 Expression::Call(ref ident, ref args) => {
                     let m = self.is_macro_call(&**ident, &env);
                     if m.is_none() {
-                        return expr.clone();
+                        return Ok(expr.clone());
                     }
 
                     let qargs = self.quote_args(&args);
@@ -413,18 +413,18 @@ impl Evaluator {
                             if evaluated.is_ok() {
                                 let evaluated = evaluated.unwrap();
                                 if let MObject::Quote(ref quote) = *evaluated {
-                                    return *quote.clone();
+                                    return Ok(*quote.clone());
                                 } else {
-                                    return expr.clone();
+                                    return Ok(expr.clone());
                                 }
                             } else {
-                                expr.clone()
+                                Ok(expr.clone())
                             }
                         }
-                        _ => expr.clone(),
+                        _ => Ok(expr.clone()),
                     }
                 }
-                _ => expr.clone(),
+                _ => Ok(expr.clone()),
             }
         };
 
@@ -824,7 +824,7 @@ let mymacro = macro(x, y) {x + y; };
         let program = parser.parse_program().unwrap();
         let env = Rc::new(RefCell::new(Environment::new()));
         let mut eval = Evaluator::new();
-        let program = eval.define_macros(&program, &env);
+        let program = eval.define_macros(&program, &env).unwrap();
 
         assert_eq!(2, program.statements.len());
         assert_eq!(None, env.borrow().get("number"));
@@ -865,8 +865,8 @@ unless_macro(10 > 5, puts("not greater"), puts("greater"));
         let program = parser.parse_program().unwrap();
         let env = Rc::new(RefCell::new(Environment::new()));
         let mut eval = Evaluator::new();
-        let program = eval.define_macros(&program, &env);
-        let program = eval.expand_macro(&program, &env);
+        let program = eval.define_macros(&program, &env).unwrap();
+        let program = eval.expand_macro(&program, &env).unwrap();
         println!("program {:?}", program);
     }
 }
