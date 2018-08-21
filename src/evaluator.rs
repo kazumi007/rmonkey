@@ -408,7 +408,7 @@ impl Evaluator {
                     let eval_env = self.extended_macro_env(&m, &qargs);
 
                     match &*m {
-                        MObject::Macro { params, body, .. } => {
+                        MObject::Macro { params: _, body, .. } => {
                             let evaluated = self.eval_statement(&body, &eval_env);
                             if evaluated.is_ok() {
                                 let evaluated = evaluated.unwrap();
@@ -448,7 +448,7 @@ impl Evaluator {
         match &**macro_obj {
             MObject::Macro {
                 ref params,
-                ref body,
+                body: _,
                 ref env,
             } => {
                 let newenv = Rc::new(RefCell::new(Environment::enclose_env(&env)));

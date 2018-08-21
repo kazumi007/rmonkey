@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -88,7 +86,6 @@ pub fn modify_statement(
                 .collect();
             Statement::BlockStatement(new_stmts)
         }
-        _ => statement,
     }
 }
 

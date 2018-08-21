@@ -844,8 +844,8 @@ return 993322;
         assert_eq!(1, program.statements.len());
         match &program.statements[0] {
             Statement::Expression(expr) => {
-                match (expr) {
-                    Expression::MacroLiteral(params, bstmt) => {
+                match expr {
+                    Expression::MacroLiteral(params, _) => {
                         assert_eq!(2, params.len());
                         test_let_identifier(&params[0], "x");
                         test_let_identifier(&params[1], "y");
