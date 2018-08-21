@@ -26,14 +26,17 @@ macro_rules! expect_peek {
     };
 }
 
-const LOWEST: u32 = 0;
-const EQUALS: u32 = 1;
-const LESSGRATER: u32 = 2;
-const SUM: u32 = 3;
-const PRODUCT: u32 = 4;
-const PREFIX: u32 = 5;
-const CALL: u32 = 6;
-const INDEX: u32 = 7;
+#[derive(PartialOrd, PartialEq)]
+enum Precedence {
+    LOWEST,
+    EQUALS,
+    LESSGRATER,
+    SUM,
+    PRODUCT,
+    PREFIX,
+    CALL,
+    INDEX,
+}
 
 pub struct Parser {
     lexer: Lexer,
@@ -96,12 +99,12 @@ impl Parser {
     fn parse_let_statement(&mut self) -> Result<Statement, String> {
         expect_peek!(self, Token::Ident(_));
 
-        let identifier = try!(self.parse_expression(LOWEST));
+        let identifier = try!(self.parse_expression(Precedence::LOWEST));
 
         expect_peek!(self, Token::Assign);
 
         self.next_token();
-        let value = try!(self.parse_expression(LOWEST));
+        let value = try!(self.parse_expression(Precedence::LOWEST));
 
         self.skip_semicolon();
 
@@ -111,7 +114,7 @@ impl Parser {
     fn parse_return_statement(&mut self) -> Result<Statement, String> {
         self.next_token();
 
-        let value = try!(self.parse_expression(LOWEST));
+        let value = try!(self.parse_expression(Precedence::LOWEST));
 
         self.skip_semicolon();
 
@@ -119,7 +122,7 @@ impl Parser {
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement, String> {
-        let expression = try!(self.parse_expression(LOWEST));
+        let expression = try!(self.parse_expression(Precedence::LOWEST));
 
         self.skip_semicolon();
 
@@ -144,7 +147,7 @@ impl Parser {
         expect_peek!(self, Token::LParen);
 
         self.next_token();
-        let cond = try!(self.parse_expression(LOWEST));
+        let cond = try!(self.parse_expression(Precedence::LOWEST));
 
         expect_peek!(self, Token::RParen);
         expect_peek!(self, Token::LBrace);
@@ -231,7 +234,7 @@ impl Parser {
         }
     }
 
-    fn parse_expression(&mut self, precedence: u32) -> Result<Expression, String> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, String> {
         let result = match self.find_prefixfn(&self.current_token) {
             Some(prefix_fn) => prefix_fn(self),
             None => {
@@ -261,12 +264,12 @@ impl Parser {
 
     fn parse_expression_list(&mut self) -> Result<Vec<Expression>, String> {
         let mut args = Vec::new();
-        args.push(try!(self.parse_expression(LOWEST)));
+        args.push(try!(self.parse_expression(Precedence::LOWEST)));
 
         while matches!(self.peek_token, Token::Comma) {
             self.next_token();
             self.next_token();
-            args.push(try!(self.parse_expression(LOWEST)));
+            args.push(try!(self.parse_expression(Precedence::LOWEST)));
         }
 
         Ok(args)
@@ -290,30 +293,30 @@ impl Parser {
 
     fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, String> {
         self.next_token();
-        let index = self.parse_expression(LOWEST)?;
+        let index = self.parse_expression(Precedence::LOWEST)?;
 
         expect_peek!(self, Token::RBracket);
 
         Ok(Expression::Index(Box::new(left), Box::new(index)))
     }
 
-    fn precedence(token: &Token) -> u32 {
+    fn precedence(token: &Token) -> Precedence {
         match token {
-            Token::Eq | Token::NotEq => EQUALS,
-            Token::Gt | Token::Lt => LESSGRATER,
-            Token::Plus | Token::Minus => SUM,
-            Token::Asterisk | Token::Slash => PRODUCT,
-            Token::LParen => CALL,
-            Token::LBracket => INDEX,
-            _ => LOWEST,
+            Token::Eq | Token::NotEq => Precedence::EQUALS,
+            Token::Gt | Token::Lt => Precedence::LESSGRATER,
+            Token::Plus | Token::Minus => Precedence::SUM,
+            Token::Asterisk | Token::Slash => Precedence::PRODUCT,
+            Token::LParen => Precedence::CALL,
+            Token::LBracket => Precedence::INDEX,
+            _ => Precedence::LOWEST,
         }
     }
 
-    fn current_precedence(&self) -> u32 {
+    fn current_precedence(&self) -> Precedence {
         Parser::precedence(&self.current_token)
     }
 
-    fn peek_precedence(&self) -> u32 {
+    fn peek_precedence(&self) -> Precedence {
         Parser::precedence(&self.peek_token)
     }
 
@@ -407,13 +410,13 @@ impl Parser {
 
         while !matches!(self.peek_token, Token::RBrace) {
             self.next_token();
-            let key = try!(self.parse_expression(LOWEST));
+            let key = try!(self.parse_expression(Precedence::LOWEST));
 
             expect_peek!(self, Token::Colon);
 
             self.next_token();
 
-            let value = try!(self.parse_expression(LOWEST));
+            let value = try!(self.parse_expression(Precedence::LOWEST));
             hash.push((key, value));
 
             if !matches!(self.peek_token, Token::RBrace) {
@@ -439,7 +442,7 @@ impl Parser {
 
         self.next_token();
 
-        let expr = try!(self.parse_expression(PREFIX));
+        let expr = try!(self.parse_expression(Precedence::PREFIX));
 
         Ok(Expression::Prefix(op, Box::new(expr)))
     }
@@ -447,7 +450,7 @@ impl Parser {
     fn parse_group(&mut self) -> Result<Expression, String> {
         self.next_token();
 
-        let exp = try!(self.parse_expression(LOWEST));
+        let exp = try!(self.parse_expression(Precedence::LOWEST));
 
         expect_peek!(self, Token::RParen);
 
@@ -843,15 +846,13 @@ return 993322;
         let program = p.parse_program().unwrap();
         assert_eq!(1, program.statements.len());
         match &program.statements[0] {
-            Statement::Expression(expr) => {
-                match expr {
-                    Expression::MacroLiteral(params, _) => {
-                        assert_eq!(2, params.len());
-                        test_let_identifier(&params[0], "x");
-                        test_let_identifier(&params[1], "y");
-                    }
-                    _ => panic!("unexpected expr: {:?}", expr),
+            Statement::Expression(expr) => match expr {
+                Expression::MacroLiteral(params, _) => {
+                    assert_eq!(2, params.len());
+                    test_let_identifier(&params[0], "x");
+                    test_let_identifier(&params[1], "y");
                 }
+                _ => panic!("unexpected expr: {:?}", expr),
             },
             _ => panic!("unexpected stmt: {:?}", program.statements[0]),
         }
