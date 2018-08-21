@@ -123,7 +123,7 @@ impl Evaluator {
                 let ident_unbox = &**ident;
                 match ident_unbox {
                     Expression::Identifier(ref idkey) if idkey == "quote" => {
-                        return self.quote(&params[0], env)
+                        self.quote(&params[0], env)
                     }
                     _ => {
                         let func = self.eval_expression(ident, env)?;
@@ -418,7 +418,7 @@ impl Evaluator {
                                     return expr.clone();
                                 }
                             } else {
-                                return expr.clone();
+                                expr.clone()
                             }
                         }
                         _ => expr.clone(),
@@ -459,7 +459,7 @@ impl Evaluator {
                     }
                 }
 
-                return newenv;
+                newenv
             }
             _ => panic!("unexpected object {:?}", macro_obj),
         }
