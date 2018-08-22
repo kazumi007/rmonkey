@@ -31,15 +31,15 @@ impl Evaluator {
     }
 
     fn eval_statements(&mut self, stmts: &[Statement], env: &Env) -> EvalResult {
-        let mut value = None;
+        let mut value = self.null_obj.clone();
         for stmt in stmts {
             let val = self.eval_statement(&stmt, env)?;
             if let MObject::ReturnValue(v) = &*val {
                 return Ok(v.clone());
             }
-            value = Some(val);
+            value = val;
         }
-        Ok(value.unwrap())
+        Ok(value)
     }
 
     fn eval_statement(&mut self, stmt: &Statement, env: &Env) -> EvalResult {
@@ -47,15 +47,15 @@ impl Evaluator {
             Statement::Expression(exp) => self.eval_expression(exp, env),
 
             Statement::BlockStatement(stmts) => {
-                let mut result = None;
+                let mut result = self.null_obj.clone();
                 for stmt in stmts {
                     let val = self.eval_statement(stmt, env)?;
                     match &*val {
                         MObject::ReturnValue(_) => return Ok(val),
-                        _ => result = Some(val),
+                        _ => result = val,
                     };
                 }
-                Ok(result.unwrap())
+                Ok(result)
             }
 
             Statement::Let(ident, exp) => {
