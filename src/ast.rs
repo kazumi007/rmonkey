@@ -121,10 +121,22 @@ impl fmt::Display for Expression {
             Expression::Prefix(op, expr) => write!(f, "({}{})", op, *expr),
             Expression::ArrayLiteral(exprs) => write!(f, "[{}]", join(exprs, ", ")),
             Expression::Infix(left, op, right) => write!(f, "({} {} {})", *left, op, *right),
-            Expression::Index(ident, index) => write!(f, "{}[{}]", ident, index),
+            Expression::HashLiteral(vals) => {
+                let mut s = String::new();
+                for (i, (key, val)) in vals.iter().enumerate() {
+                    s += &key.to_string();
+                    s += ": ";
+                    s += &val.to_string();
+                    if i != 0 {
+                        s += ", ";
+                    }
+                }
+                write!(f, "{{{}}}", s)
+            }
             Expression::FunctionLiteral(args, bstmt) => {
                 write!(f, "fn({}){{{}}}", join(args, ", "), **bstmt)
             }
+            Expression::Index(ident, index) => write!(f, "{}[{}]", ident, index),
             Expression::If(cond, conseq, alter) => {
                 if let Some(v) = alter {
                     write!(f, "if {} {} else {}", *cond, conseq, &*v)
@@ -133,7 +145,9 @@ impl fmt::Display for Expression {
                 }
             }
             Expression::Call(ident, params) => write!(f, "{}({})", ident, join(params, ", ")),
-            _ => write!(f, "not supported"),
+            Expression::MacroLiteral(args, bstmt) => {
+                write!(f, "macro({}){{{}}}", join(args, ", "), *bstmt)
+            }
         }
     }
 }
