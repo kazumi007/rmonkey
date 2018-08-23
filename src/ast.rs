@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -23,10 +25,35 @@ impl Statement {
     }
 }
 
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (self) {
+            Statement::Let(ident, expr) => write!(f, "let {} = {};", ident, expr),
+            Statement::Return(expr) => write!(f, "return {};", expr),
+            Statement::Expression(expr) => write!(f, "{}", expr),
+            Statement::BlockStatement(stmts) => {
+                for stmt in stmts {
+                    write!(f, "{}", stmt);
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum PreOp {
     Neg, // -
     Not, // !
+}
+
+impl fmt::Display for PreOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (self) {
+            PreOp::Neg => write!(f, "-"),
+            PreOp::Not => write!(f, "!"),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -39,6 +66,21 @@ pub enum InfixOp {
     Neq, // !=
     Lt,  // <
     Gt,  // >
+}
+
+impl fmt::Display for InfixOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (self) {
+            InfixOp::Add => write!(f, "+"),
+            InfixOp::Sub => write!(f, "-"),
+            InfixOp::Mul => write!(f, "*"),
+            InfixOp::Div => write!(f, "/"),
+            InfixOp::Eq => write!(f, "=="),
+            InfixOp::Neq => write!(f, "!="),
+            InfixOp::Lt => write!(f, "<"),
+            InfixOp::Gt => write!(f, ">"),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -56,6 +98,44 @@ pub enum Expression {
     If(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
     Call(Box<Expression>, Vec<Expression>), // Function, Arguments
     MacroLiteral(Vec<Expression>, Box<Statement>), // Expression::Identifier, Expression::BlockStatement
+}
+
+fn join(exprs: &[Expression], separator: &str) -> String {
+    let mut s = String::new();
+    for (i, expr) in exprs.iter().enumerate() {
+        s += &expr.to_string();
+        if i != 0 {
+            s += separator;
+        }
+    }
+    s
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::Identifier(val) => write!(f, "{}", val),
+            Expression::IntegerLiteral(val) => write!(f, "{}", val),
+            Expression::BooleanLiteral(val) => write!(f, "{}", val),
+            Expression::StringLiteral(val) => write!(f, "{}", val),
+            Expression::Prefix(op, expr) => write!(f, "({}{})", op, *expr),
+            Expression::ArrayLiteral(exprs) => write!(f, "[{}]", join(exprs, ", ")),
+            Expression::Infix(left, op, right) => write!(f, "({} {} {})", *left, op, *right),
+            Expression::Index(ident, index) => write!(f, "{}[{}]", ident, index),
+            Expression::FunctionLiteral(args, bstmt) => {
+                write!(f, "fn({}){{{}}}", join(args, ", "), **bstmt)
+            }
+            Expression::If(cond, conseq, alter) => {
+                if let Some(v) = alter {
+                    write!(f, "if {} {} else {}", *cond, conseq, &*v)
+                } else {
+                    write!(f, "if {} {}", *cond, conseq)
+                }
+            }
+            Expression::Call(ident, params) => write!(f, "{}({})", ident, join(params, ", ")),
+            _ => write!(f, "not supported"),
+        }
+    }
 }
 
 pub type ModifierFn = FnMut(Expression) -> Result<Expression, String>;

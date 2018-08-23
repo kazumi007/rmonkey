@@ -61,6 +61,17 @@ pub enum MObject {
     },
 }
 
+fn join(vals : &[Rc<MObject>], separator:&str)->String {
+    let mut s = String::new();
+    for (i, val) in vals.iter().enumerate() {
+        if i != 0 {
+            s += separator;
+         }
+         s += &val.to_string();
+    }
+    s
+}
+
 impl fmt::Display for MObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -69,20 +80,22 @@ impl fmt::Display for MObject {
             MObject::Null => write!(f, "nil"),
             MObject::Str(val) => write!(f, "\"{}\"", val),
             MObject::Array(vals) => {
-                write!(f, "[");
-                let mut is_first = true;
-                for val in vals {
-                    if !is_first {
-                        write!(f, ", ");
-                    }
-                    write!(f, "{}", val);
-                    is_first = false;
-                }
-                write!(f, "]")
+                write!(f, "[{}]", join(&vals, ", "))
             }
             MObject::ReturnValue(val) => write!(f, "{}", val),
-            MObject::Function { .. } => write!(f, "Function"),
-            MObject::BuiltinFunc { name } => write!(f, "BuiltinFunc{}", name),
+            MObject::Function { params, body, .. } => {
+                write!(f, "fn(");
+                for (i, param) in params.into_iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ");
+                    }
+                    write!(f, "{}", param);
+                }
+                write!(f, "){{");
+                write!(f, "{}", body);
+                write!(f, "}}")
+            }
+            MObject::BuiltinFunc { name } => write!(f, "{}", name),
             MObject::HashMap(ref map) => {
                 write!(f, "{{");
                 let mut is_first = true;
@@ -95,7 +108,7 @@ impl fmt::Display for MObject {
                 }
                 write!(f, "}}")
             }
-            MObject::Quote(node) => write!(f, "quote()"), // TODO: output node.
+            MObject::Quote(node) => write!(f, "quote({})", node),
             MObject::Macro { .. } => {
                 write!(f, "macro(");
                 write!(f, "...)")
