@@ -288,8 +288,8 @@ impl Evaluator {
             } => {
                 let newenv = Rc::new(RefCell::new(Environment::enclose_env(&env)));
 
-                for (i, arg) in args.iter().enumerate() {
-                    if let Expression::Identifier(key) = &params[i] {
+                for (arg, param) in args.iter().zip(params.iter()) {
+                    if let Expression::Identifier(key) = &param {
                         newenv.borrow_mut().put(key, arg);
                     }
                 }
