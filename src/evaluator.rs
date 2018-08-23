@@ -118,7 +118,6 @@ impl Evaluator {
                 body: bstmt.clone(),
                 env: env.clone(),
             })),
-
             Expression::Call(ident, params) => {
                 let ident_unbox = &**ident;
                 match ident_unbox {
@@ -289,7 +288,7 @@ impl Evaluator {
             } => {
                 let newenv = Rc::new(RefCell::new(Environment::enclose_env(&env)));
 
-                for (i, arg) in args.into_iter().enumerate() {
+                for (i, arg) in args.iter().enumerate() {
                     if let Expression::Identifier(key) = &params[i] {
                         newenv.borrow_mut().put(key, arg);
                     }
@@ -408,7 +407,9 @@ impl Evaluator {
                     let eval_env = self.extended_macro_env(&m, &qargs);
 
                     match &*m {
-                        MObject::Macro { params: _, body, .. } => {
+                        MObject::Macro {
+                            params: _, body, ..
+                        } => {
                             let evaluated = self.eval_statement(&body, &eval_env);
                             if evaluated.is_ok() {
                                 let evaluated = evaluated.unwrap();
@@ -439,7 +440,7 @@ impl Evaluator {
     }
 
     fn quote_args(&self, args: &[Expression]) -> Vec<Rc<MObject>> {
-        args.into_iter()
+        args.iter()
             .map(|arg| Rc::new(MObject::Quote(Box::new(arg.clone()))))
             .collect()
     }
@@ -453,7 +454,7 @@ impl Evaluator {
             } => {
                 let newenv = Rc::new(RefCell::new(Environment::enclose_env(&env)));
 
-                for (i, arg) in args.into_iter().enumerate() {
+                for (i, arg) in args.iter().enumerate() {
                     if let Expression::Identifier(key) = &params[i] {
                         newenv.borrow_mut().put(key, arg);
                     }
