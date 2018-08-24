@@ -159,7 +159,7 @@ pub fn modify(
     modifier: &mut FnMut(Expression) -> Result<Expression, String>,
 ) -> Result<Program, String> {
     let mut new_stmt = vec![];
-    for stmt in program.statements.into_iter() {
+    for stmt in program.statements {
         new_stmt.push(modify_statement(stmt, modifier)?);
     }
     Ok(Program {
@@ -181,7 +181,7 @@ pub fn modify_statement(
         }
         Statement::BlockStatement(stmts) => {
             let mut new_stmts = vec![];
-            for stmt in stmts.into_iter() {
+            for stmt in stmts {
                 new_stmts.push(modify_statement(stmt, modifier)?);
             }
             Ok(Statement::BlockStatement(new_stmts))

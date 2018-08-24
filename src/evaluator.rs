@@ -94,12 +94,10 @@ impl Evaluator {
 
                 if self.is_truethly(&cond_result) {
                     self.eval_statement(&**cons, env)
+                } else if let Some(v) = alt {
+                    return self.eval_statement(v, env);
                 } else {
-                    if let Some(v) = alt {
-                        return self.eval_statement(v, env);
-                    } else {
-                        return Ok(self.null_obj.clone());
-                    }
+                    return Ok(self.null_obj.clone());
                 }
             }
 
