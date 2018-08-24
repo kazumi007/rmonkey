@@ -27,7 +27,7 @@ impl Statement {
 
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self) {
+        match self {
             Statement::Let(ident, expr) => write!(f, "let {} = {};", ident, expr),
             Statement::Return(expr) => write!(f, "return {};", expr),
             Statement::Expression(expr) => write!(f, "{}", expr),
@@ -49,7 +49,7 @@ pub enum PreOp {
 
 impl fmt::Display for PreOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self) {
+        match self {
             PreOp::Neg => write!(f, "-"),
             PreOp::Not => write!(f, "!"),
         }
@@ -70,7 +70,7 @@ pub enum InfixOp {
 
 impl fmt::Display for InfixOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self) {
+        match self {
             InfixOp::Add => write!(f, "+"),
             InfixOp::Sub => write!(f, "-"),
             InfixOp::Mul => write!(f, "*"),

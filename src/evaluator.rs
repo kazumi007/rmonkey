@@ -475,8 +475,8 @@ mod tests {
     use parser::Parser;
 
     fn test_eval(input: &str) -> EvalResult {
-        let l = Lexer::with_string(input);
-        let mut parser = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut parser = Parser::new(&mut l);
         let program = parser.parse_program().unwrap();
         let env = Rc::new(RefCell::new(Environment::new()));
         let mut eval = Evaluator::new();
@@ -820,8 +820,8 @@ let number = 1;
 let function = fn(x, y) { x + y; };
 let mymacro = macro(x, y) {x + y; };
 "#;
-        let l = Lexer::with_string(input);
-        let mut parser = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut parser = Parser::new(&mut l);
         let program = parser.parse_program().unwrap();
         let env = Rc::new(RefCell::new(Environment::new()));
         let mut eval = Evaluator::new();
@@ -861,8 +861,8 @@ let unless_macro = macro(condition, consequence, alternative) {
 unless_macro(10 > 5, puts("not greater"), puts("greater"));
 
 "#;
-        let l = Lexer::with_string(input);
-        let mut parser = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut parser = Parser::new(&mut l);
         let program = parser.parse_program().unwrap();
         let env = Rc::new(RefCell::new(Environment::new()));
         let mut eval = Evaluator::new();

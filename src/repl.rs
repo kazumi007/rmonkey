@@ -17,8 +17,8 @@ pub fn start_repl(reader: &mut Stdin, writer: &mut Write) {
         writer.flush();
         let mut buf = String::new();
         reader.read_line(&mut buf);
-        let l = Lexer::with_string(&buf);
-        let mut p = Parser::new(l);
+        let mut l = Lexer::with_string(&buf);
+        let mut p = Parser::new(&mut l);
         let mut e = Evaluator::new();
         let result = parse_and_expand_macro(&mut p, &mut e, &macro_env);
 
@@ -41,8 +41,8 @@ pub fn start_interpreter(buf: &str, writer: &mut Write) {
     let env = Rc::new(RefCell::new(Environment::new()));
     let macro_env = Rc::new(RefCell::new(Environment::new()));
 
-    let l = Lexer::with_string(&buf);
-    let mut p = Parser::new(l);
+    let mut l = Lexer::with_string(&buf);
+    let mut p = Parser::new(&mut l);
     let mut e = Evaluator::new();
     let result = parse_and_expand_macro(&mut p, &mut e, &macro_env);
 

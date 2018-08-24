@@ -38,18 +38,14 @@ enum Precedence {
     INDEX,
 }
 
-pub struct Parser {
-    lexer: Lexer,
+pub struct Parser<'a> {
+    lexer: &'a mut Lexer,
     current_token: Token,
     peek_token: Token,
 }
 
-type PrefixParseFn = fn(&mut Parser) -> Result<Expression, String>;
-
-type InfixParseFn = fn(&mut Parser, Expression) -> Result<Expression, String>;
-
-impl Parser {
-    pub fn new(l: Lexer) -> Parser {
+impl<'a> Parser<'a> {
+    pub fn new(l: &'a mut Lexer) -> Parser<'a> {
         let mut parser = Parser {
             lexer: l,
             current_token: Token::EOF,
@@ -215,51 +211,64 @@ impl Parser {
         Ok(Expression::MacroLiteral(params, Box::new(block)))
     }
 
-    fn find_prefixfn(&self, token: &Token) -> Option<PrefixParseFn> {
-        match token {
-            Token::Ident(_) => Some(Parser::parse_identifier),
-            Token::Int(_) => Some(Parser::parse_int),
-            Token::False => Some(Parser::parse_bool),
-            Token::True => Some(Parser::parse_bool),
-            Token::Bang => Some(Parser::parse_prefix),
-            Token::Minus => Some(Parser::parse_prefix),
-            Token::LParen => Some(Parser::parse_group),
-            Token::LBrace => Some(Parser::parse_hash_literal),
-            Token::LBracket => Some(Parser::parse_array_literal),
-            Token::Str(_) => Some(Parser::parse_str),
-            Token::If => Some(Parser::parse_if_expression),
-            Token::Function => Some(Parser::parse_func),
-            Token::Macro => Some(Parser::parse_macro),
-            _ => None,
-        }
-    }
-
-    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, String> {
-        let result = match self.find_prefixfn(&self.current_token) {
-            Some(prefix_fn) => prefix_fn(self),
-            None => {
+    fn parse_prefix_expression(&mut self) -> Result<Expression, String> {
+        match self.current_token {
+            Token::Ident(_) => self.parse_identifier(),
+            Token::Int(_) => self.parse_int(),
+            Token::False => self.parse_bool(),
+            Token::True => self.parse_bool(),
+            Token::Bang => self.parse_prefix(),
+            Token::Minus => self.parse_prefix(),
+            Token::LParen => self.parse_group(),
+            Token::LBrace => self.parse_hash_literal(),
+            Token::LBracket => self.parse_array_literal(),
+            Token::Str(_) => self.parse_str(),
+            Token::If => self.parse_if_expression(),
+            Token::Function => self.parse_func(),
+            Token::Macro => self.parse_macro(),
+            _ => {
                 return Err(format!(
                     "no prefix parse function for {:?} found.",
                     &self.current_token
                 ).to_string())
             }
-        };
+        }
+    }
+
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, String> {
+        let result = self.parse_prefix_expression();
 
         let mut left = try!(result);
 
         while !matches!(self.peek_token, Token::SemiColon) && (precedence < self.peek_precedence())
         {
-            match self.find_infixfn(&self.peek_token) {
-                Some(ref parse_infixfn) => {
+            match self.peek_token {
+                Token::Plus
+                | Token::Minus
+                | Token::Asterisk
+                | Token::Slash
+                | Token::Eq
+                | Token::NotEq
+                | Token::Lt
+                | Token::Gt => {
                     self.next_token();
-                    let result = parse_infixfn(self, left);
+                    let result = self.parse_infix_expression(left);
                     left = try!(result);
                 }
-                None => return Ok(left),
+                Token::LParen => {
+                    self.next_token();
+                    let result = self.parse_call_expression(left);
+                    left = try!(result);
+                }
+                Token::LBracket => {
+                    self.next_token();
+                    let result = self.parse_index_expression(left);
+                    left = try!(result);
+                }
+                _ => return Ok(left),
             }
         }
-
-        Ok(left)
+       Ok(left)
     }
 
     fn parse_expression_list(&mut self) -> Result<Vec<Expression>, String> {
@@ -318,22 +327,6 @@ impl Parser {
 
     fn peek_precedence(&self) -> Precedence {
         Parser::precedence(&self.peek_token)
-    }
-
-    fn find_infixfn(&self, token: &Token) -> Option<InfixParseFn> {
-        match token {
-            Token::Plus => Some(Parser::parse_infix_expression),
-            Token::Minus => Some(Parser::parse_infix_expression),
-            Token::Asterisk => Some(Parser::parse_infix_expression),
-            Token::Slash => Some(Parser::parse_infix_expression),
-            Token::Eq => Some(Parser::parse_infix_expression),
-            Token::NotEq => Some(Parser::parse_infix_expression),
-            Token::Lt => Some(Parser::parse_infix_expression),
-            Token::Gt => Some(Parser::parse_infix_expression),
-            Token::LParen => Some(Parser::parse_call_expression),
-            Token::LBracket => Some(Parser::parse_index_expression),
-            _ => None,
-        }
     }
 
     fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, String> {
@@ -471,8 +464,8 @@ mod tests {
         ];
 
         for test in tests.iter() {
-            let l = Lexer::with_string(test.0);
-            let mut parser = Parser::new(l);
+            let mut l = Lexer::with_string(test.0);
+            let mut parser = Parser::new(&mut l);
             let program = parser.parse_program().unwrap();
 
             assert_eq!(1, program.statements.len());
@@ -503,8 +496,8 @@ return 10;
 return 993322;
 "#;
 
-        let l = Lexer::with_string(inputs);
-        let mut parser = Parser::new(l);
+        let mut l = Lexer::with_string(inputs);
+        let mut parser = Parser::new(&mut l);
         let program = parser.parse_program().unwrap();
 
         assert_eq!(3, program.statements.len());
@@ -527,8 +520,8 @@ return 993322;
         ];
 
         for t in tests.into_iter() {
-            let l = Lexer::with_string(t.0);
-            let mut parser = Parser::new(l);
+            let mut l = Lexer::with_string(t.0);
+            let mut parser = Parser::new(&mut l);
             let program = parser.parse_program().unwrap();
 
             assert_eq!(1, program.statements.len());
@@ -621,8 +614,8 @@ return 993322;
         ];
 
         for t in tests.into_iter() {
-            let l = Lexer::with_string(t.0);
-            let mut parser = Parser::new(l);
+            let mut l = Lexer::with_string(t.0);
+            let mut parser = Parser::new(&mut l);
             let program = parser.parse_program().unwrap();
 
             println!("{:?}\n", program.statements);
@@ -699,8 +692,8 @@ return 993322;
         ];
 
         for t in tests.into_iter() {
-            let l = Lexer::with_string(t.0);
-            let mut parser = Parser::new(l);
+            let mut l = Lexer::with_string(t.0);
+            let mut parser = Parser::new(&mut l);
             let program = parser.parse_program().unwrap();
 
             assert_eq!(1, program.statements.len());
@@ -712,8 +705,8 @@ return 993322;
     fn test_if_expression() {
         let input = r#"if (x < y) { x }"#;
 
-        let l = Lexer::with_string(input);
-        let mut parser = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut parser = Parser::new(&mut l);
         let program = parser.parse_program().unwrap();
 
         assert_eq!(1, program.statements.len());
@@ -754,8 +747,8 @@ return 993322;
     fn test_function_literal() {
         let input = r#"fn(x, y){x + y;}"#;
 
-        let l = Lexer::with_string(input);
-        let mut p = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut p = Parser::new(&mut l);
 
         let program = p.parse_program().unwrap();
 
@@ -797,8 +790,8 @@ return 993322;
     #[test]
     fn test_call_expression() {
         let input = r#"add(1, 2 * 3, 4 + 5);"#;
-        let l = Lexer::with_string(input);
-        let mut p = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut p = Parser::new(&mut l);
 
         let program = p.parse_program().unwrap();
         assert_eq!(1, program.statements.len());
@@ -818,8 +811,8 @@ return 993322;
     #[test]
     fn test_call_expression_2() {
         let input = "let add = fn(x, y){x + y}; puts(add(1, 2 * 3, 4 + 5));";
-        let l = Lexer::with_string(input);
-        let mut p = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut p = Parser::new(&mut l);
 
         let program = p.parse_program().unwrap();
         assert_eq!(2, program.statements.len());
@@ -840,8 +833,8 @@ return 993322;
     fn test_macro_literal() {
         let input = "macro(x, y){ x + y; }";
 
-        let l = Lexer::with_string(input);
-        let mut p = Parser::new(l);
+        let mut l = Lexer::with_string(input);
+        let mut p = Parser::new(&mut l);
 
         let program = p.parse_program().unwrap();
         assert_eq!(1, program.statements.len());
